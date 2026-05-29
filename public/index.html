@@ -3,74 +3,132 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>API Model Modernizer</title>
+  <title>API Model Modernizer — Iron Digital</title>
+  <meta name="description" content="Automated AI model deprecation scanner and updater for your GitHub repositories.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="noise"></div>
+  <!-- Botanical texture layer -->
+  <div class="botanical-bg" aria-hidden="true">
+    <svg class="leaf-1" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M100 0 C140 60 180 120 160 200 C140 280 60 300 20 260 C-20 220 10 140 40 80 C70 20 100 0 100 0Z" fill="#1B6A59" opacity="0.07"/>
+      <path d="M100 0 L60 260" stroke="#1B6A59" stroke-width="1.5" opacity="0.06"/>
+    </svg>
+    <svg class="leaf-2" viewBox="0 0 160 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M80 0 C110 40 140 90 130 160 C118 230 50 240 20 210 C-10 180 10 110 30 60 C50 10 80 0 80 0Z" fill="#F2A93B" opacity="0.05"/>
+    </svg>
+    <svg class="leaf-3" viewBox="0 0 120 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M60 0 C90 30 100 70 90 120 C80 170 30 200 10 175 C-10 150 5 90 20 50 C35 10 60 0 60 0Z" fill="#1B6A59" opacity="0.08"/>
+    </svg>
+  </div>
+
   <main class="dashboard">
-    <header class="grid-header">
-      <div class="title-section">
-        <h1>KILL THE<br>LEGACY.</h1>
-        <p class="subtitle">Automated Model Extinction Protocol.</p>
+
+    <!-- HEADER -->
+    <header class="site-header">
+      <div class="header-wordmark">
+        <span class="wordmark-label">Iron Digital</span>
+        <h1>Model<br><em>Extinction</em><br>Protocol.</h1>
       </div>
-      <div class="action-section">
-        <button id="runNowBtn" class="btn-primary">Execute Now</button>
+      <div class="header-actions">
+        <div class="status-pill" id="statusPill">
+          <span class="pulse-dot"></span>
+          <span>Bot Dormant</span>
+        </div>
+        <button class="btn-cta" id="runNowBtn">Run Scan Now</button>
       </div>
     </header>
 
-    <div class="asym-layout">
-      <!-- 35% Column -->
-      <section class="col-narrow">
-        <div class="panel schedule-panel">
-          <h2>HEARTBEAT.</h2>
-          <p class="micro-text">Define when the bot wakes up.</p>
-          <div class="form-group">
-            <label for="cronInput">CRON EXPRESSION</label>
+    <!-- ASYMMETRIC BODY LAYOUT -->
+    <div class="body-layout">
+
+      <!-- LEFT COLUMN — 38% -->
+      <aside class="col-left">
+
+        <!-- SCHEDULE PANEL -->
+        <section class="panel panel-schedule">
+          <div class="panel-label">Heartbeat</div>
+          <h2>Schedule</h2>
+          <p class="panel-descriptor">Define when the bot wakes to hunt.</p>
+
+          <div class="cron-presets">
+            <button class="preset-btn active" data-cron="0 0 * * 0">Weekly</button>
+            <button class="preset-btn" data-cron="0 0 * * *">Daily</button>
+            <button class="preset-btn" data-cron="0 0 1 * *">Monthly</button>
+          </div>
+
+          <div class="form-field">
+            <label for="cronInput">Custom Cron Expression</label>
             <input type="text" id="cronInput" placeholder="0 0 * * 0" />
-            <span class="help-text">Default: Every Sunday at midnight.</span>
+            <span class="field-hint">Default: Every Sunday at midnight (UTC).</span>
           </div>
-          <button id="saveScheduleBtn" class="btn-secondary">Lock Schedule</button>
-        </div>
+          <button class="btn-secondary" id="saveScheduleBtn">Lock Schedule</button>
+        </section>
 
-        <div class="panel repos-panel">
-          <h2>TARGETS.</h2>
-          <p class="micro-text">Repositories in the crosshairs.</p>
-          <ul id="reposList" class="target-list">
-            <!-- Populated by JS -->
-          </ul>
-          <div class="input-group">
+        <!-- REPOS PANEL -->
+        <section class="panel panel-repos">
+          <div class="panel-label">Targets</div>
+          <h2>Repositories</h2>
+          <p class="panel-descriptor">Repositories in the crosshairs.</p>
+
+          <ul class="repo-list" id="reposList"></ul>
+
+          <div class="input-row">
             <input type="text" id="newRepoInput" placeholder="Owner/RepoName" />
-            <button id="addRepoBtn" class="btn-add">+</button>
+            <button class="btn-add" id="addRepoBtn" aria-label="Add Repository">+</button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 65% Column -->
-      <section class="col-wide">
-        <div class="panel models-panel">
-          <h2>DEPRECATION MAP.</h2>
-          <p class="micro-text">The kill list. Old models die. New models replace them.</p>
-          
-          <div class="models-grid" id="modelsGrid">
-            <!-- Populated by JS -->
+      </aside>
+
+      <!-- RIGHT COLUMN — 62% -->
+      <section class="col-right">
+
+        <!-- DEPRECATION MAP PANEL -->
+        <div class="panel panel-models">
+          <div class="panel-header-row">
+            <div>
+              <div class="panel-label">Kill List</div>
+              <h2>Deprecation Map</h2>
+              <p class="panel-descriptor">Legacy models are catalogued, flagged, and replaced.</p>
+            </div>
+            <div class="model-count-badge" id="modelCountBadge">0 Rules</div>
           </div>
 
-          <div class="add-model-box">
+          <div class="models-grid" id="modelsGrid"></div>
+
+          <!-- Add rule form -->
+          <div class="add-rule-section">
             <h3>Inject New Rule</h3>
-            <div class="form-row">
-              <input type="text" id="oldModelInput" placeholder="Legacy (e.g., gpt-3.5)" />
-              <input type="text" id="newModelInput" placeholder="Replacement Model" />
-              <input type="text" id="depDateInput" placeholder="Deprecation Date" />
-              <button id="addModelBtn" class="btn-secondary">Inject</button>
+            <div class="add-rule-form">
+              <div class="form-field">
+                <label for="oldModelInput">Legacy Model</label>
+                <input type="text" id="oldModelInput" placeholder="e.g. gpt-3.5-turbo-0613" />
+              </div>
+              <div class="form-field">
+                <label for="newModelInput">Replacement Model</label>
+                <input type="text" id="newModelInput" placeholder="e.g. gpt-4o-mini" />
+              </div>
+              <div class="form-field">
+                <label for="depDateInput">Deprecation Date</label>
+                <input type="text" id="depDateInput" placeholder="YYYY-MM-DD or N/A" />
+              </div>
+              <button class="btn-cta btn-inject" id="addModelBtn">Inject</button>
             </div>
           </div>
         </div>
+
       </section>
     </div>
+
   </main>
-  
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
   <script src="app.js"></script>
 </body>
 </html>
