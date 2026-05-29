@@ -59,6 +59,7 @@ export async function startDeviceFlow(clientId) {
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'API-Updater-Dashboard',
     },
     body: params.toString(),
   });
@@ -117,6 +118,7 @@ export async function pollDeviceFlow() {
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'API-Updater-Dashboard',
     },
     body: params.toString(),
   });
@@ -129,14 +131,25 @@ export async function pollDeviceFlow() {
   const data = await res.json();
 
   if (data.access_token) {
-    // Success — fetch user info
+    console.log('🔑 Device flow polling success: Access token received.');
+    
+    // Success — fetch user info (requires User-Agent header)
     const userRes  = await fetch(GITHUB_USER_URL, {
       headers: {
-        Authorization: `token ${data.access_token}`,
+        Authorization: `Bearer ${data.access_token}`,
         Accept: 'application/vnd.github+json',
+        'User-Agent': 'API-Updater-Dashboard',
       },
     });
+
+    if (!userRes.ok) {
+      const errText = await userRes.text();
+      console.error(`❌ Failed to retrieve user info from GitHub (HTTP ${userRes.status}): ${errText}`);
+      return { status: 'error', message: `User fetch failed (HTTP ${userRes.status}): ${errText}` };
+    }
+
     const user = await userRes.json();
+    console.log(`👤 Authenticated successfully as GitHub user: @${user.login}`);
 
     activeSession.status      = 'authorized';
     activeSession.accessToken = data.access_token;
@@ -151,6 +164,7 @@ export async function pollDeviceFlow() {
   if (data.error === 'slow_down') return { status: 'pending' };
   if (data.error === 'expired_token') { activeSession.status = 'expired'; return { status: 'expired' }; }
 
+  console.warn(`⚠ Polling returned unhandled error: ${data.error_description || data.error}`);
   return { status: 'error', message: data.error_description || data.error };
 }
 
