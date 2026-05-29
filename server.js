@@ -4,6 +4,7 @@ import path from 'path';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { runResearch } from './research.js';
+import { startDeviceFlow, pollDeviceFlow, getAuthStatus, clearToken, readStoredToken } from './auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -113,6 +114,53 @@ app.post('/api/research', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Dashboard Server running at http://localhost:${PORT}\n`);
+// ---- Auth Endpoints (GitHub Device Flow) ----
+
+// GET /api/auth/status — check if already authenticated
+app.get('/api/auth/status', (req, res) => {
+  res.json(getAuthStatus());
 });
+
+// POST /api/auth/start — start the device flow, get user_code
+app.post('/api/auth/start', async (req, res) => {
+  try {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    if (!clientId || clientId === 'your_client_id_here') {
+      return res.status(400).json({
+        error: 'GITHUB_CLIENT_ID is not configured. Add it to your .env file.'
+      });
+    }
+    const data = await startDeviceFlow(clientId);
+    res.json({ success: true, ...data });
+  } catch (err) {
+    console.error('Auth start error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/poll — poll for token completion
+app.get('/api/auth/poll', async (req, res) => {
+  try {
+    const result = await pollDeviceFlow();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// POST /api/auth/logout — clear stored token
+app.post('/api/auth/logout', (req, res) => {
+  clearToken();
+  res.json({ success: true });
+});
+
+app.listen(PORT, () => {
+  const token = readStoredToken();
+  console.log(`\n🚀 Dashboard Server running at http://localhost:${PORT}`);
+  if (token) {
+    console.log('✅ GitHub token found — already authenticated.\n');
+  } else {
+    console.log('⚠  No GitHub token. Use the dashboard to log in.\n');
+  }
+});
+

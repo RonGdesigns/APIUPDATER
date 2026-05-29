@@ -365,7 +365,150 @@ runNowBtn.addEventListener('click', () => {
 });
 
 // ============================================================
+// AUTH — GitHub Device Flow
+// ============================================================
+
+const authModal      = document.getElementById('authModal');
+const authModalClose = document.getElementById('authModalClose');
+const githubLoginBtn = document.getElementById('githubLoginBtn');
+const logoutBtn      = document.getElementById('logoutBtn');
+const authUnconnected = document.getElementById('authUnconnected');
+const authConnected  = document.getElementById('authConnected');
+const authAvatar     = document.getElementById('authAvatar');
+const authUsername   = document.getElementById('authUsername');
+const authUserCode   = document.getElementById('authUserCode');
+const authVerifyLink = document.getElementById('authVerifyLink');
+const authExpireNote = document.getElementById('authExpireNote');
+const pollStatusText = document.getElementById('pollStatusText');
+const copyCodeBtn    = document.getElementById('copyCodeBtn');
+const authStepCode   = document.getElementById('authStepCode');
+const authStepSuccess = document.getElementById('authStepSuccess');
+const authSuccessMsg = document.getElementById('authSuccessMsg');
+const authDoneBtn    = document.getElementById('authDoneBtn');
+
+let pollInterval = null;
+
+function showAuthModal() {
+  authModal.classList.remove('hidden');
+  // Reset to step 1
+  authStepCode.classList.remove('hidden');
+  authStepSuccess.classList.add('hidden');
+}
+
+function hideAuthModal() {
+  authModal.classList.add('hidden');
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+}
+
+function setConnected(user) {
+  authUnconnected.classList.add('hidden');
+  authConnected.classList.remove('hidden');
+  if (user) {
+    authAvatar.src    = user.avatar_url || '';
+    authUsername.textContent = '@' + (user.login || 'Connected');
+  }
+}
+
+function setDisconnected() {
+  authUnconnected.classList.remove('hidden');
+  authConnected.classList.add('hidden');
+}
+
+// Check auth status on page load
+async function checkAuthStatus() {
+  try {
+    const res  = await fetch(`${API_BASE}/auth/status`);
+    const data = await res.json();
+    if (data.authenticated) {
+      setConnected(data.user);
+    } else {
+      setDisconnected();
+    }
+  } catch {
+    setDisconnected();
+  }
+}
+
+// Start device flow
+githubLoginBtn.addEventListener('click', async () => {
+  showAuthModal();
+  authUserCode.textContent = '— — — —';
+  pollStatusText.textContent = 'Requesting authorization code...';
+
+  try {
+    const res  = await fetch(`${API_BASE}/auth/start`, { method: 'POST' });
+    const data = await res.json();
+
+    if (!data.success) {
+      pollStatusText.textContent = '⚠ ' + (data.error || 'Failed to start auth.');
+      return;
+    }
+
+    // Display the code
+    authUserCode.textContent = data.user_code;
+    authVerifyLink.href      = data.verification_uri;
+    authExpireNote.textContent = `Code expires in ${Math.floor(data.expires_in / 60)} minutes.`;
+    pollStatusText.textContent = 'Waiting for you to enter the code...';
+
+    // Start polling
+    const pollMs = (data.interval || 5) * 1000;
+    pollInterval = setInterval(async () => {
+      try {
+        const pollRes  = await fetch(`${API_BASE}/auth/poll`);
+        const pollData = await pollRes.json();
+
+        if (pollData.status === 'authorized') {
+          clearInterval(pollInterval); pollInterval = null;
+          // Show success step
+          authStepCode.classList.add('hidden');
+          authStepSuccess.classList.remove('hidden');
+          authSuccessMsg.textContent = `Authorized as @${pollData.user?.login || 'GitHub User'}.`;
+          setConnected(pollData.user);
+          showToast('✓ GitHub connected successfully!');
+        } else if (pollData.status === 'expired') {
+          clearInterval(pollInterval); pollInterval = null;
+          pollStatusText.textContent = '⚠ Code expired. Close and try again.';
+        } else if (pollData.status === 'error') {
+          clearInterval(pollInterval); pollInterval = null;
+          pollStatusText.textContent = '⚠ ' + (pollData.message || 'Auth error.');
+        }
+        // 'pending' → keep polling silently
+      } catch { /* network blip, keep trying */ }
+    }, pollMs);
+
+  } catch (err) {
+    pollStatusText.textContent = '⚠ Could not reach server.';
+  }
+});
+
+// Copy code button
+copyCodeBtn.addEventListener('click', () => {
+  const code = authUserCode.textContent.trim();
+  navigator.clipboard.writeText(code).then(() => {
+    copyCodeBtn.textContent = 'Copied!';
+    setTimeout(() => { copyCodeBtn.textContent = 'Copy'; }, 2000);
+  });
+});
+
+// Close modal
+authModalClose.addEventListener('click', hideAuthModal);
+authModal.addEventListener('click', (e) => {
+  if (e.target === authModal) hideAuthModal();
+});
+
+// Done button after success
+authDoneBtn.addEventListener('click', hideAuthModal);
+
+// Logout
+logoutBtn.addEventListener('click', async () => {
+  await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+  setDisconnected();
+  showToast('✓ Disconnected from GitHub.');
+});
+
+// ============================================================
 // BOOT
 // ============================================================
 buildHourDropdown();
-Promise.all([fetchSchedule(), fetchRepos(), fetchModels()]);
+Promise.all([fetchSchedule(), fetchRepos(), fetchModels(), checkAuthStatus()]);
+
