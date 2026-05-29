@@ -1,0 +1,26 @@
+name: AI Model Updater Bot
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at midnight
+  workflow_dispatch: # Allows manual trigger from the GitHub UI
+
+jobs:
+  update-models:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Updater Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: npm install
+        
+      - name: Run Model Updater Bot
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        run: npm start

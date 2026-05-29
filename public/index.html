@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Model Modernizer</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="noise"></div>
+  <main class="dashboard">
+    <header class="grid-header">
+      <div class="title-section">
+        <h1>KILL THE<br>LEGACY.</h1>
+        <p class="subtitle">Automated Model Extinction Protocol.</p>
+      </div>
+      <div class="action-section">
+        <button id="runNowBtn" class="btn-primary">Execute Now</button>
+      </div>
+    </header>
+
+    <div class="asym-layout">
+      <!-- 35% Column -->
+      <section class="col-narrow">
+        <div class="panel schedule-panel">
+          <h2>HEARTBEAT.</h2>
+          <p class="micro-text">Define when the bot wakes up.</p>
+          <div class="form-group">
+            <label for="cronInput">CRON EXPRESSION</label>
+            <input type="text" id="cronInput" placeholder="0 0 * * 0" />
+            <span class="help-text">Default: Every Sunday at midnight.</span>
+          </div>
+          <button id="saveScheduleBtn" class="btn-secondary">Lock Schedule</button>
+        </div>
+
+        <div class="panel repos-panel">
+          <h2>TARGETS.</h2>
+          <p class="micro-text">Repositories in the crosshairs.</p>
+          <ul id="reposList" class="target-list">
+            <!-- Populated by JS -->
+          </ul>
+          <div class="input-group">
+            <input type="text" id="newRepoInput" placeholder="Owner/RepoName" />
+            <button id="addRepoBtn" class="btn-add">+</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 65% Column -->
+      <section class="col-wide">
+        <div class="panel models-panel">
+          <h2>DEPRECATION MAP.</h2>
+          <p class="micro-text">The kill list. Old models die. New models replace them.</p>
+          
+          <div class="models-grid" id="modelsGrid">
+            <!-- Populated by JS -->
+          </div>
+
+          <div class="add-model-box">
+            <h3>Inject New Rule</h3>
+            <div class="form-row">
+              <input type="text" id="oldModelInput" placeholder="Legacy (e.g., gpt-3.5)" />
+              <input type="text" id="newModelInput" placeholder="Replacement Model" />
+              <input type="text" id="depDateInput" placeholder="Deprecation Date" />
+              <button id="addModelBtn" class="btn-secondary">Inject</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  
+  <script src="app.js"></script>
+</body>
+</html>

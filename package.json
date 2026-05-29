@@ -1,0 +1,18 @@
+{
+  "name": "api-model-updater",
+  "version": "1.0.0",
+  "description": "Automated bot to scan GitHub repositories for deprecated AI models and create update PRs.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dashboard": "node server.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "simple-git": "^3.24.0"
+  }
+}
