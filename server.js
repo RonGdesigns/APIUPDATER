@@ -5,7 +5,7 @@ import path from 'path';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { runResearch } from './research.js';
-import { startDeviceFlow, pollDeviceFlow, getAuthStatus, clearToken, readStoredToken } from './auth.js';
+import { startDeviceFlow, pollDeviceFlow, getAuthStatus, clearToken, readStoredToken, getUserRepos } from './auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,6 +153,16 @@ app.get('/api/auth/poll', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearToken();
   res.json({ success: true });
+});
+
+// GET /api/auth/repos — list user's repositories from GitHub
+app.get('/api/auth/repos', async (req, res) => {
+  try {
+    const repos = await getUserRepos();
+    res.json({ success: true, repos });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {

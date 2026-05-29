@@ -194,3 +194,37 @@ export function getAuthStatus() {
 
   return { authenticated: false };
 }
+
+/**
+ * Fetch the authenticated user's repositories from GitHub.
+ * Returns an array of repository names (full_name e.g. "owner/repo").
+ */
+export async function getUserRepos() {
+  const token = readStoredToken();
+  if (!token) {
+    throw new Error('Not authenticated with GitHub.');
+  }
+
+  const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'API-Updater-Dashboard',
+    },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`❌ Failed to fetch user repos (HTTP ${res.status}): ${errText}`);
+    throw new Error(`GitHub returned HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error('Unexpected response format from GitHub user repos API.');
+  }
+
+  // Return list of full names (e.g. "Owner/Repo")
+  return data.map(repo => repo.full_name);
+}
+

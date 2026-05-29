@@ -1149,3 +1149,34 @@ input[type="text"]:focus {
   margin-bottom: var(--space-4);
 }
 
+/* Repo Select Dropdown */
+select.repo-select {
+  width: 100%;
+  background: rgba(7, 31, 28, 0.6);
+  border: 1px solid rgba(242, 169, 59, 0.2);
+  border-radius: 2px;
+  color: var(--color-cream);
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  transition: border-color 200ms var(--ease-organic),
+              box-shadow 200ms var(--ease-organic);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23F2A93B' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 32px;
+}
+select.repo-select:focus {
+  outline: none;
+  border-color: rgba(242, 169, 59, 0.6);
+  box-shadow: 0 0 0 3px rgba(242, 169, 59, 0.08);
+}
+select.repo-select option {
+  background: var(--color-night);
+  color: var(--color-cream);
+}
+
+

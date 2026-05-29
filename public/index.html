@@ -134,8 +134,16 @@
 
           <ul class="repo-list" id="reposList"></ul>
 
-          <div class="input-row">
+          <div class="input-row" id="repoInputRow">
             <input type="text" id="newRepoInput" placeholder="Owner/RepoName" />
+            <select id="repoSelectDropdown" class="repo-select hidden">
+              <option value="">-- Select GitHub Repository --</option>
+            </select>
+          </div>
+          <div class="repo-toggle-row hidden" id="repoToggleRow" style="margin-top:var(--space-1); margin-bottom:var(--space-3); text-align:right;">
+            <button id="toggleRepoInputBtn" style="background:none; border:none; color:var(--color-gold); font-size:var(--text-xs); font-family:var(--font-body); cursor:pointer; text-decoration:underline; font-weight:500;">
+              Type manually
+            </button>
           </div>
           <button class="btn-add-repo" id="addRepoBtn">+ Add Repository</button>
         </section>

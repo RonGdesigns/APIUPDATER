@@ -4,6 +4,9 @@ const API_BASE = '/api';
 const saveScheduleBtn = document.getElementById('saveScheduleBtn');
 const reposList       = document.getElementById('reposList');
 const newRepoInput    = document.getElementById('newRepoInput');
+const repoSelectDropdown = document.getElementById('repoSelectDropdown');
+const repoToggleRow      = document.getElementById('repoToggleRow');
+const toggleRepoInputBtn = document.getElementById('toggleRepoInputBtn');
 const addRepoBtn      = document.getElementById('addRepoBtn');
 const modelsGrid      = document.getElementById('modelsGrid');
 const addModelBtn     = document.getElementById('addModelBtn');
@@ -26,6 +29,8 @@ const pickAmPm   = document.getElementById('pickAmPm');
 let repos     = [];
 let modelsMap = {};
 let schedState = { freq: 'weekly', day: 0, hour24: 0, minute: 0 };
+let gitHubRepos = [];
+let repoInputMode = 'manual'; // 'select' | 'manual'
 
 // ---- Toast ----
 let toastTimer;
@@ -218,19 +223,79 @@ function renderRepos() {
   });
 }
 
+// Toggle input mode helper
+function setRepoInputMode(mode) {
+  repoInputMode = mode;
+  if (mode === 'select' && gitHubRepos.length > 0) {
+    newRepoInput.classList.add('hidden');
+    repoSelectDropdown.classList.remove('hidden');
+    repoToggleRow.classList.remove('hidden');
+    toggleRepoInputBtn.textContent = 'Type manually';
+  } else {
+    newRepoInput.classList.remove('hidden');
+    repoSelectDropdown.classList.add('hidden');
+    if (gitHubRepos.length > 0) {
+      repoToggleRow.classList.remove('hidden');
+      toggleRepoInputBtn.textContent = 'Select from GitHub';
+    } else {
+      repoToggleRow.classList.add('hidden');
+    }
+  }
+}
+
+// Populate the repository select dropdown options
+function populateRepoDropdown() {
+  repoSelectDropdown.innerHTML = '<option value="">-- Select GitHub Repository --</option>';
+  gitHubRepos.forEach(repo => {
+    const opt = document.createElement('option');
+    opt.value = repo;
+    opt.textContent = repo;
+    repoSelectDropdown.appendChild(opt);
+  });
+}
+
+// Fetch user repos from backend API
+async function fetchUserRepos() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/repos`);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.repos)) {
+      gitHubRepos = data.repos;
+      populateRepoDropdown();
+      setRepoInputMode('select');
+    } else {
+      setRepoInputMode('manual');
+    }
+  } catch (err) {
+    console.error('Failed to fetch user repos:', err);
+    setRepoInputMode('manual');
+  }
+}
+
+toggleRepoInputBtn.addEventListener('click', () => {
+  setRepoInputMode(repoInputMode === 'select' ? 'manual' : 'select');
+});
+
 addRepoBtn.addEventListener('click', () => {
-  const repo = newRepoInput.value.trim();
+  let repo;
+  if (repoInputMode === 'select') {
+    repo = repoSelectDropdown.value;
+  } else {
+    repo = newRepoInput.value.trim();
+  }
+
   if (!repo) {
-    showToast('⚠ Please enter a repository (e.g. Owner/RepoName).');
+    showToast(repoInputMode === 'select' ? '⚠ Please select a repository.' : '⚠ Please enter a repository (e.g. Owner/RepoName).');
     return;
   }
   if (repos.includes(repo)) {
     showToast('⚠ That repository is already in the list.');
-    newRepoInput.value = '';
+    if (repoInputMode === 'manual') newRepoInput.value = '';
     return;
   }
   repos.push(repo);
-  newRepoInput.value = '';
+  if (repoInputMode === 'manual') newRepoInput.value = '';
+  else repoSelectDropdown.value = '';
   persistRepos();
   renderRepos();
   showToast(`✓ ${repo} added to targets.`);
@@ -407,11 +472,14 @@ function setConnected(user) {
     authAvatar.src    = user.avatar_url || '';
     authUsername.textContent = '@' + (user.login || 'Connected');
   }
+  fetchUserRepos();
 }
 
 function setDisconnected() {
   authUnconnected.classList.remove('hidden');
   authConnected.classList.add('hidden');
+  gitHubRepos = [];
+  setRepoInputMode('manual');
 }
 
 // Check auth status on page load
