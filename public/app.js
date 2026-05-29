@@ -1,105 +1,234 @@
 const API_BASE = '/api';
 
 // ---- DOM Elements ----
-const cronInput        = document.getElementById('cronInput');
-const saveScheduleBtn  = document.getElementById('saveScheduleBtn');
-const reposList        = document.getElementById('reposList');
-const newRepoInput     = document.getElementById('newRepoInput');
-const addRepoBtn       = document.getElementById('addRepoBtn');
-const modelsGrid       = document.getElementById('modelsGrid');
-const addModelBtn      = document.getElementById('addModelBtn');
-const modelCountBadge  = document.getElementById('modelCountBadge');
-const statusPill       = document.getElementById('statusPill');
-const toast            = document.getElementById('toast');
-const runNowBtn        = document.getElementById('runNowBtn');
+const saveScheduleBtn = document.getElementById('saveScheduleBtn');
+const reposList       = document.getElementById('reposList');
+const newRepoInput    = document.getElementById('newRepoInput');
+const addRepoBtn      = document.getElementById('addRepoBtn');
+const modelsGrid      = document.getElementById('modelsGrid');
+const addModelBtn     = document.getElementById('addModelBtn');
+const modelCountBadge = document.getElementById('modelCountBadge');
+const statusPill      = document.getElementById('statusPill');
+const toast           = document.getElementById('toast');
+const runNowBtn       = document.getElementById('runNowBtn');
+const researchBtn     = document.getElementById('researchBtn');
+const cronDisplay     = document.getElementById('cronDisplay');
+
+// Schedule controls
+const freqTabs   = document.querySelectorAll('.freq-tab');
+const dayBtns    = document.querySelectorAll('.day-btn');
+const dayGroup   = document.getElementById('dayPickerGroup');
+const pickHour   = document.getElementById('pickHour');
+const pickMinute = document.getElementById('pickMinute');
+const pickAmPm   = document.getElementById('pickAmPm');
 
 // ---- State ----
 let repos     = [];
 let modelsMap = {};
+let schedState = { freq: 'weekly', day: 0, hour24: 0, minute: 0 };
 
-// ---- Toast Notification ----
+// ---- Toast ----
 let toastTimer;
 function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
-// ---- Init ----
-async function init() {
-  await Promise.all([fetchSchedule(), fetchRepos(), fetchModels()]);
+// ============================================================
+// SCHEDULE — Visual Picker
+// ============================================================
+
+// Populate hour dropdown (1–12)
+function buildHourDropdown() {
+  for (let h = 1; h <= 12; h++) {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = h < 10 ? `0${h}` : `${h}`;
+    pickHour.appendChild(opt);
+  }
 }
 
-// ---- Schedule ----
-async function fetchSchedule() {
-  const res  = await fetch(`${API_BASE}/schedule`);
-  const data = await res.json();
-  cronInput.value = data.cron || '0 0 * * 0';
-  syncPresets(data.cron);
+// Build cron string from UI state
+function buildCron() {
+  const { freq, day, hour24, minute } = schedState;
+  const minStr = minute;
+  if (freq === 'daily')   return `${minStr} ${hour24} * * *`;
+  if (freq === 'monthly') return `${minStr} ${hour24} 1 * *`;
+  return `${minStr} ${hour24} * * ${day}`; // weekly
 }
 
-function syncPresets(cron) {
-  document.querySelectorAll('.preset-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.cron === cron);
+// Convert 12h → 24h
+function get24Hour() {
+  let h = parseInt(pickHour.value);
+  const ampm = pickAmPm.value;
+  if (ampm === 'am' && h === 12) h = 0;
+  if (ampm === 'pm' && h !== 12) h += 12;
+  return h;
+}
+
+// Update preview display
+function updateCronPreview() {
+  schedState.hour24 = get24Hour();
+  schedState.minute = parseInt(pickMinute.value);
+  const cron = buildCron();
+  cronDisplay.textContent = cron;
+}
+
+// Parse an incoming cron string into UI state
+function parseCron(cron) {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return;
+  const [min, hour, dom, , dow] = parts;
+
+  schedState.minute = parseInt(min) || 0;
+  schedState.hour24 = parseInt(hour) || 0;
+
+  if (dom === '1' && dow === '*') {
+    schedState.freq = 'monthly';
+  } else if (dow !== '*') {
+    schedState.freq = 'weekly';
+    schedState.day  = parseInt(dow) || 0;
+  } else {
+    schedState.freq = 'daily';
+  }
+
+  // Sync UI
+  syncFreqTabs();
+  syncDayButtons();
+
+  // Sync hour/ampm
+  let h24 = schedState.hour24;
+  const ampm = h24 >= 12 ? 'pm' : 'am';
+  let h12 = h24 % 12;
+  if (h12 === 0) h12 = 12;
+  pickHour.value   = h12;
+  pickAmPm.value   = ampm;
+  pickMinute.value = schedState.minute;
+
+  updateCronPreview();
+}
+
+function syncFreqTabs() {
+  freqTabs.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.freq === schedState.freq);
+  });
+  dayGroup.classList.toggle('hidden', schedState.freq !== 'weekly');
+}
+
+function syncDayButtons() {
+  dayBtns.forEach(btn => {
+    btn.classList.toggle('selected', parseInt(btn.dataset.day) === schedState.day);
   });
 }
 
-document.querySelectorAll('.preset-btn').forEach(btn => {
+// Frequency tab clicks
+freqTabs.forEach(btn => {
   btn.addEventListener('click', () => {
-    cronInput.value = btn.dataset.cron;
-    syncPresets(btn.dataset.cron);
+    schedState.freq = btn.dataset.freq;
+    syncFreqTabs();
+    updateCronPreview();
   });
 });
 
+// Day button clicks
+dayBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    schedState.day = parseInt(btn.dataset.day);
+    syncDayButtons();
+    updateCronPreview();
+  });
+});
+
+// Time select changes
+[pickHour, pickMinute, pickAmPm].forEach(el => {
+  el.addEventListener('change', updateCronPreview);
+});
+
+// Save schedule
 saveScheduleBtn.addEventListener('click', async () => {
-  const cron = cronInput.value.trim();
-  if (!cron) return;
+  const cron = buildCron();
   await fetch(`${API_BASE}/schedule`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cron })
+    body: JSON.stringify({ cron }),
   });
-  syncPresets(cron);
   showToast('✓ Schedule locked in.');
   saveScheduleBtn.textContent = 'Locked!';
-  setTimeout(() => saveScheduleBtn.textContent = 'Lock Schedule', 2500);
+  setTimeout(() => { saveScheduleBtn.textContent = 'Lock Schedule'; }, 2500);
 });
 
-// ---- Repos ----
+async function fetchSchedule() {
+  try {
+    const res  = await fetch(`${API_BASE}/schedule`);
+    const data = await res.json();
+    parseCron(data.cron || '0 0 * * 0');
+  } catch {
+    parseCron('0 0 * * 0');
+  }
+}
+
+// ============================================================
+// REPOS
+// ============================================================
+
 async function fetchRepos() {
-  const res = await fetch(`${API_BASE}/repos`);
-  repos     = await res.json();
+  try {
+    const res = await fetch(`${API_BASE}/repos`);
+    repos     = await res.json();
+  } catch {
+    repos = [];
+  }
   renderRepos();
 }
 
 async function persistRepos() {
-  await fetch(`${API_BASE}/repos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(repos)
-  });
+  try {
+    await fetch(`${API_BASE}/repos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(repos),
+    });
+  } catch (err) {
+    showToast('⚠ Could not save: server not running?');
+  }
 }
 
 function renderRepos() {
   reposList.innerHTML = '';
-  if (repos.length === 0) {
-    reposList.innerHTML = '<li style="color: rgba(183,199,163,0.4); font-size: 0.75rem; padding: 12px 0;">No repositories added yet.</li>';
+  if (!repos || repos.length === 0) {
+    const li = document.createElement('li');
+    li.style.cssText = 'color:rgba(183,199,163,0.4);font-size:0.75rem;padding:12px 0;';
+    li.textContent = 'No repositories added yet.';
+    reposList.appendChild(li);
     return;
   }
   repos.forEach((repo, i) => {
     const li = document.createElement('li');
-    li.innerHTML = `
-      <span>${repo}</span>
-      <button class="btn-delete-repo" onclick="removeRepo(${i})">Remove</button>
-    `;
+    const span = document.createElement('span');
+    span.textContent = repo;
+    const btn = document.createElement('button');
+    btn.className = 'btn-delete-repo';
+    btn.textContent = 'Remove';
+    btn.onclick = () => removeRepo(i);
+    li.appendChild(span);
+    li.appendChild(btn);
     reposList.appendChild(li);
   });
 }
 
 addRepoBtn.addEventListener('click', () => {
   const repo = newRepoInput.value.trim();
-  if (!repo || repos.includes(repo)) return;
+  if (!repo) {
+    showToast('⚠ Please enter a repository (e.g. Owner/RepoName).');
+    return;
+  }
+  if (repos.includes(repo)) {
+    showToast('⚠ That repository is already in the list.');
+    newRepoInput.value = '';
+    return;
+  }
   repos.push(repo);
   newRepoInput.value = '';
   persistRepos();
@@ -111,18 +240,25 @@ newRepoInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') addRepoBtn.click();
 });
 
-window.removeRepo = (index) => {
+function removeRepo(index) {
   const removed = repos[index];
   repos.splice(index, 1);
   persistRepos();
   renderRepos();
   showToast(`✕ ${removed} removed.`);
-};
+}
 
-// ---- Models ----
+// ============================================================
+// MODELS
+// ============================================================
+
 async function fetchModels() {
-  const res = await fetch(`${API_BASE}/models`);
-  modelsMap = await res.json();
+  try {
+    const res = await fetch(`${API_BASE}/models`);
+    modelsMap = await res.json();
+  } catch {
+    modelsMap = {};
+  }
   renderModels();
 }
 
@@ -130,7 +266,7 @@ async function persistModels() {
   await fetch(`${API_BASE}/models`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(modelsMap)
+    body: JSON.stringify(modelsMap),
   });
 }
 
@@ -140,20 +276,21 @@ function renderModels() {
   modelCountBadge.textContent = `${entries.length} Rule${entries.length !== 1 ? 's' : ''}`;
 
   if (entries.length === 0) {
-    modelsGrid.innerHTML = '<p style="color: rgba(183,199,163,0.4); font-size: 0.75rem; grid-column: span 2;">No rules in the deprecation map.</p>';
+    modelsGrid.innerHTML =
+      '<p style="color:rgba(183,199,163,0.4);font-size:0.75rem;grid-column:span 2;padding:16px 0;">No rules yet. Hit "Research Models" to auto-populate.</p>';
     return;
   }
 
   entries.forEach(([oldModel, info]) => {
-    const card = document.createElement('div');
-    card.className = 'model-card';
-
-    const isNA = !info.deprecation_date || info.deprecation_date === 'N/A';
+    const card      = document.createElement('div');
+    card.className  = 'model-card';
+    const isNA      = !info.deprecation_date || info.deprecation_date === 'N/A';
     const badgeClass = isNA ? 'dep-badge na' : 'dep-badge';
     const badgeText  = isNA ? 'No Fixed Date' : `Deprecated: ${info.deprecation_date}`;
+    const safeModel  = oldModel.replace(/'/g, "\\'");
 
     card.innerHTML = `
-      <button class="btn-remove" title="Remove rule" onclick="removeModel('${oldModel.replace(/'/g, "\\'")}')">×</button>
+      <button class="btn-remove" title="Remove rule" onclick="removeModel('${safeModel}')">×</button>
       <span class="${badgeClass}">${badgeText}</span>
       <div class="legacy-name">${oldModel}</div>
       <div class="arrow-label">↳ replaced by</div>
@@ -167,12 +304,10 @@ addModelBtn.addEventListener('click', () => {
   const oldModel    = document.getElementById('oldModelInput').value.trim();
   const replacement = document.getElementById('newModelInput').value.trim();
   const depDate     = document.getElementById('depDateInput').value.trim() || 'N/A';
-
   if (!oldModel || !replacement) {
     showToast('⚠ Please fill in legacy model and replacement.');
     return;
   }
-
   modelsMap[oldModel] = { replacement, deprecation_date: depDate };
   document.getElementById('oldModelInput').value = '';
   document.getElementById('newModelInput').value = '';
@@ -189,16 +324,48 @@ window.removeModel = (oldModel) => {
   showToast(`✕ Rule for ${oldModel} removed.`);
 };
 
-// ---- Run Now ----
+// ============================================================
+// RESEARCH BUTTON
+// ============================================================
+researchBtn.addEventListener('click', async () => {
+  if (researchBtn.classList.contains('loading')) return;
+  researchBtn.classList.add('loading');
+  researchBtn.querySelector('span:last-child').textContent = 'Researching...';
+  showToast('🔬 Fetching latest deprecation data...');
+
+  try {
+    const res  = await fetch(`${API_BASE}/research`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      modelsMap = data.map;
+      renderModels();
+      showToast(`✓ Research complete! ${data.found} deprecated models found & mapped.`);
+    } else {
+      showToast('⚠ Research failed: ' + (data.error || 'Unknown error.'));
+    }
+  } catch (err) {
+    showToast('⚠ Could not reach server. Is it running?');
+  } finally {
+    researchBtn.classList.remove('loading');
+    researchBtn.querySelector('span:last-child').textContent = 'Research Models';
+  }
+});
+
+// ============================================================
+// RUN NOW
+// ============================================================
 runNowBtn.addEventListener('click', () => {
   statusPill.classList.add('active');
   statusPill.querySelector('span:last-child').textContent = 'Bot Running...';
-  showToast('🚀 Scan triggered! Check GitHub Actions.');
+  showToast('🚀 Scan triggered! Check GitHub Actions tab.');
   setTimeout(() => {
     statusPill.classList.remove('active');
     statusPill.querySelector('span:last-child').textContent = 'Bot Dormant';
   }, 5000);
 });
 
-// ---- Boot ----
-init();
+// ============================================================
+// BOOT
+// ============================================================
+buildHourDropdown();
+Promise.all([fetchSchedule(), fetchRepos(), fetchModels()]);

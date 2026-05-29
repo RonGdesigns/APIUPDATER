@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
+import { runResearch } from './research.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,6 +92,24 @@ app.post('/api/schedule', (req, res) => {
     res.json({ success: true, cron });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save workflow schedule' });
+  }
+});
+
+// Research Endpoint — fetches deprecation data from provider docs
+app.post('/api/research', async (req, res) => {
+  try {
+    console.log('\n🔬 Research triggered from dashboard...');
+    const results = await runResearch();
+
+    // Merge with existing map (don't overwrite manual entries)
+    const existing = readJson(MODELS_FILE);
+    const merged   = { ...results, ...existing };
+    writeJson(MODELS_FILE, merged);
+
+    res.json({ success: true, found: Object.keys(results).length, map: merged });
+  } catch (err) {
+    console.error('Research error:', err);
+    res.status(500).json({ error: 'Research failed: ' + err.message });
   }
 });
 

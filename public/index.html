@@ -52,19 +52,63 @@
         <section class="panel panel-schedule">
           <div class="panel-label">Heartbeat</div>
           <h2>Schedule</h2>
-          <p class="panel-descriptor">Define when the bot wakes to hunt.</p>
+          <p class="panel-descriptor">Pick exactly when the bot wakes to hunt.</p>
 
-          <div class="cron-presets">
-            <button class="preset-btn active" data-cron="0 0 * * 0">Weekly</button>
-            <button class="preset-btn" data-cron="0 0 * * *">Daily</button>
-            <button class="preset-btn" data-cron="0 0 1 * *">Monthly</button>
+          <!-- Frequency tabs -->
+          <div class="freq-tabs">
+            <button class="freq-tab active" data-freq="weekly" id="freqWeekly">Weekly</button>
+            <button class="freq-tab" data-freq="daily" id="freqDaily">Daily</button>
+            <button class="freq-tab" data-freq="monthly" id="freqMonthly">Monthly</button>
           </div>
 
-          <div class="form-field">
-            <label for="cronInput">Custom Cron Expression</label>
-            <input type="text" id="cronInput" placeholder="0 0 * * 0" />
-            <span class="field-hint">Default: Every Sunday at midnight (UTC).</span>
+          <!-- Day picker (shown only on weekly mode) -->
+          <div class="day-picker-group" id="dayPickerGroup">
+            <span class="picker-label">Day of Week</span>
+            <div class="day-picker">
+              <button class="day-btn" data-day="0" id="day-0">Sun</button>
+              <button class="day-btn" data-day="1" id="day-1">Mon</button>
+              <button class="day-btn" data-day="2" id="day-2">Tue</button>
+              <button class="day-btn" data-day="3" id="day-3">Wed</button>
+              <button class="day-btn" data-day="4" id="day-4">Thu</button>
+              <button class="day-btn" data-day="5" id="day-5">Fri</button>
+              <button class="day-btn" data-day="6" id="day-6">Sat</button>
+            </div>
           </div>
+
+          <!-- Time picker -->
+          <div class="time-picker-group">
+            <span class="picker-label">Time (UTC)</span>
+            <div class="time-picker">
+              <div class="time-field">
+                <label for="pickHour">Hour</label>
+                <select id="pickHour" class="time-select">
+                </select>
+              </div>
+              <div class="time-sep">:</div>
+              <div class="time-field">
+                <label for="pickMinute">Minute</label>
+                <select id="pickMinute" class="time-select">
+                  <option value="0">00</option>
+                  <option value="15">15</option>
+                  <option value="30">30</option>
+                  <option value="45">45</option>
+                </select>
+              </div>
+              <div class="time-field">
+                <label for="pickAmPm">AM/PM</label>
+                <select id="pickAmPm" class="time-select">
+                  <option value="am">AM</option>
+                  <option value="pm">PM</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="cron-preview" id="cronPreview">
+            <span class="cron-preview-label">Cron:</span>
+            <code id="cronDisplay">0 0 * * 0</code>
+          </div>
+
           <button class="btn-secondary" id="saveScheduleBtn">Lock Schedule</button>
         </section>
 
@@ -78,8 +122,8 @@
 
           <div class="input-row">
             <input type="text" id="newRepoInput" placeholder="Owner/RepoName" />
-            <button class="btn-add" id="addRepoBtn" aria-label="Add Repository">+</button>
           </div>
+          <button class="btn-add-repo" id="addRepoBtn">+ Add Repository</button>
         </section>
 
       </aside>
@@ -95,7 +139,12 @@
               <h2>Deprecation Map</h2>
               <p class="panel-descriptor">Legacy models are catalogued, flagged, and replaced.</p>
             </div>
-            <div class="model-count-badge" id="modelCountBadge">0 Rules</div>
+            <div class="model-header-actions">
+              <div class="model-count-badge" id="modelCountBadge">0 Rules</div>
+              <button class="btn-research" id="researchBtn">
+                <span class="research-icon">⟳</span> Research Models
+              </button>
+            </div>
           </div>
 
           <div class="models-grid" id="modelsGrid"></div>
