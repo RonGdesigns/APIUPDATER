@@ -487,6 +487,9 @@ copyCodeBtn.addEventListener('click', () => {
   navigator.clipboard.writeText(code).then(() => {
     copyCodeBtn.textContent = 'Copied!';
     setTimeout(() => { copyCodeBtn.textContent = 'Copy'; }, 2000);
+    // Jump to the GitHub device authorization page
+    const targetUrl = authVerifyLink.href || 'https://github.com/login/device';
+    window.open(targetUrl, '_blank');
   });
 });
 

@@ -50,16 +50,23 @@ export function clearToken() {
  * Returns { user_code, verification_uri, expires_in, interval, device_code }
  */
 export async function startDeviceFlow(clientId) {
+  const params = new URLSearchParams();
+  params.append('client_id', clientId);
+  params.append('scope', SCOPE);
+
   const res = await fetch(GITHUB_DEVICE_CODE_URL, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({ client_id: clientId, scope: SCOPE }),
+    body: params.toString(),
   });
 
-  if (!res.ok) throw new Error(`GitHub returned HTTP ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`GitHub returned HTTP ${res.status}: ${errText}`);
+  }
   const data = await res.json();
 
   if (data.error) throw new Error(data.error_description || data.error);
@@ -100,18 +107,24 @@ export async function pollDeviceFlow() {
   }
 
   // Poll GitHub
+  const params = new URLSearchParams();
+  params.append('client_id', activeSession.clientId);
+  params.append('device_code', activeSession.deviceCode);
+  params.append('grant_type', 'urn:ietf:params:oauth:grant-type:device_code');
+
   const res = await fetch(GITHUB_TOKEN_URL, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({
-      client_id:   activeSession.clientId,
-      device_code: activeSession.deviceCode,
-      grant_type:  'urn:ietf:params:oauth:grant-type:device_code',
-    }),
+    body: params.toString(),
   });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    return { status: 'error', message: `HTTP ${res.status}: ${errText}` };
+  }
 
   const data = await res.json();
 
