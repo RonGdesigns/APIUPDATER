@@ -17,6 +17,14 @@ const runNowBtn       = document.getElementById('runNowBtn');
 const researchBtn     = document.getElementById('researchBtn');
 const cronDisplay     = document.getElementById('cronDisplay');
 
+// Scan terminal DOM Elements
+const scanModal        = document.getElementById('scanModal');
+const scanModalClose   = document.getElementById('scanModalClose');
+const scanConsole      = document.getElementById('scanConsole');
+const scanStatusText   = document.getElementById('scanStatusText');
+const scanModalDoneBtn = document.getElementById('scanModalDoneBtn');
+const scanStatus       = document.getElementById('scanStatus');
+
 // Schedule controls
 const freqTabs   = document.querySelectorAll('.freq-tab');
 const dayBtns    = document.querySelectorAll('.day-btn');
@@ -31,6 +39,7 @@ let modelsMap = {};
 let schedState = { freq: 'weekly', day: 0, hour24: 0, minute: 0 };
 let gitHubRepos = [];
 let repoInputMode = 'manual'; // 'select' | 'manual'
+let scanDetections = [];
 
 // ---- Toast ----
 let toastTimer;
@@ -319,10 +328,16 @@ function removeRepo(index) {
 
 async function fetchModels() {
   try {
-    const res = await fetch(`${API_BASE}/models`);
-    modelsMap = await res.json();
-  } catch {
+    const [modelsRes, resultsRes] = await Promise.all([
+      fetch(`${API_BASE}/models`),
+      fetch(`${API_BASE}/scan/results`)
+    ]);
+    modelsMap = await modelsRes.json();
+    scanDetections = await resultsRes.json();
+  } catch (err) {
+    console.error('Failed to fetch models or scan results:', err);
     modelsMap = {};
+    scanDetections = [];
   }
   renderModels();
 }
@@ -354,12 +369,36 @@ function renderModels() {
     const badgeText  = isNA ? 'No Fixed Date' : `Deprecated: ${info.deprecation_date}`;
     const safeModel  = oldModel.replace(/'/g, "\\'");
 
+    // Filter detections in repos for this specific legacy model
+    const detections = scanDetections.filter(d => d.model === oldModel);
+    let detectionsHtml = '';
+    if (detections.length > 0) {
+      detectionsHtml = `
+        <div class="model-detections-list">
+          <div class="detections-header">🚨 Detected in:</div>
+          ${detections.map(d => `
+            <div class="detection-item" title="Line ${d.line}: ${d.lineContent}">
+              <strong>${d.repo}</strong><br>
+              <span class="file-path">${d.file}:${d.line}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else {
+      detectionsHtml = `
+        <div class="model-detections-list clean">
+          <span>✓ Clean (0 usages)</span>
+        </div>
+      `;
+    }
+
     card.innerHTML = `
       <button class="btn-remove" title="Remove rule" onclick="removeModel('${safeModel}')">×</button>
       <span class="${badgeClass}">${badgeText}</span>
       <div class="legacy-name">${oldModel}</div>
       <div class="arrow-label">↳ replaced by</div>
       <div class="replacement-name">${info.replacement}</div>
+      ${detectionsHtml}
     `;
     modelsGrid.appendChild(card);
   });
@@ -417,16 +456,90 @@ researchBtn.addEventListener('click', async () => {
 });
 
 // ============================================================
-// RUN NOW
+// RUN NOW (ACTUAL SCANNING & STREAMING LOGS)
 // ============================================================
-runNowBtn.addEventListener('click', () => {
-  statusPill.classList.add('active');
-  statusPill.querySelector('span:last-child').textContent = 'Bot Running...';
-  showToast('🚀 Scan triggered! Check GitHub Actions tab.');
-  setTimeout(() => {
-    statusPill.classList.remove('active');
-    statusPill.querySelector('span:last-child').textContent = 'Bot Dormant';
-  }, 5000);
+runNowBtn.addEventListener('click', async () => {
+  if (statusPill.classList.contains('active')) {
+    showToast('⚠ A scan is already in progress.');
+    return;
+  }
+
+  // Open the console modal
+  scanConsole.innerHTML = '[Initializing connection to server scan stream...]\n';
+  scanModal.classList.remove('hidden');
+  scanModalDoneBtn.classList.add('hidden');
+  scanStatus.classList.remove('hidden');
+  scanStatusText.textContent = 'Scanner starting...';
+
+  try {
+    const res = await fetch(`${API_BASE}/scan/run`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.success) {
+      scanConsole.innerHTML += `❌ Error: ${data.error || 'Failed to start scan.'}\n`;
+      scanStatusText.textContent = 'Scan failed.';
+      scanModalDoneBtn.classList.remove('hidden');
+      scanStatus.classList.add('hidden');
+      return;
+    }
+
+    // Set UI state
+    statusPill.classList.add('active');
+    statusPill.querySelector('span:last-child').textContent = 'Bot Running...';
+
+    // Start EventSource stream for log output
+    const eventSource = new EventSource(`${API_BASE}/scan/stream`);
+
+    eventSource.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.log) {
+        scanConsole.innerHTML += `${msg.log}\n`;
+        // Scroll terminal to the bottom
+        scanConsole.scrollTop = scanConsole.scrollHeight;
+      }
+      if (msg.done) {
+        eventSource.close();
+        scanStatusText.textContent = 'Scan complete.';
+        scanModalDoneBtn.classList.remove('hidden');
+        scanStatus.classList.add('hidden');
+        
+        statusPill.classList.remove('active');
+        statusPill.querySelector('span:last-child').textContent = 'Bot Dormant';
+        
+        // Reload models and scan results
+        fetchModels();
+        showToast('✓ Repository scan completed!');
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('EventSource error:', err);
+      eventSource.close();
+      scanConsole.innerHTML += `⚠ Connection lost. Polling logs ceased.\n`;
+      scanStatusText.textContent = 'Scan interrupted.';
+      scanModalDoneBtn.classList.remove('hidden');
+      scanStatus.classList.add('hidden');
+      
+      statusPill.classList.remove('active');
+      statusPill.querySelector('span:last-child').textContent = 'Bot Dormant';
+      fetchModels();
+    };
+
+  } catch (err) {
+    scanConsole.innerHTML += `❌ Failed to connect to backend server: ${err.message}\n`;
+    scanStatusText.textContent = 'Connection failed.';
+    scanModalDoneBtn.classList.remove('hidden');
+    scanStatus.classList.add('hidden');
+  }
+});
+
+// Close scan modal listeners
+const hideScanModal = () => {
+  scanModal.classList.add('hidden');
+};
+scanModalClose.addEventListener('click', hideScanModal);
+scanModalDoneBtn.addEventListener('click', hideScanModal);
+scanModal.addEventListener('click', (e) => {
+  if (e.target === scanModal) hideScanModal();
 });
 
 // ============================================================

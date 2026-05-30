@@ -235,6 +235,28 @@
     </div>
   </div>
 
+  <!-- Scan Console Modal -->
+  <div class="auth-modal-overlay hidden" id="scanModal">
+    <div class="auth-modal" style="max-width: 680px;">
+      <button class="auth-modal-close" id="scanModalClose">&times;</button>
+      <div class="auth-modal-label">Scanner Terminal</div>
+      <h2 class="auth-modal-title">Live <em>Scan</em> Console</h2>
+      <p class="auth-modal-desc">Streaming live workspace updates and model deprecation patches...</p>
+      
+      <div id="scanConsole" style="background:#020b0a; border:1px solid rgba(242,169,59,0.3); border-radius:2px; height:320px; overflow-y:auto; padding:var(--space-4); font-family:monospace; font-size:12px; line-height:1.5; color:#aaffaa; white-space:pre-wrap; margin-bottom:var(--space-6); box-shadow:0 0 30px rgba(0,255,0,0.05) inset;">
+        [Waiting to initialize terminal...]
+      </div>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="auth-poll-status" id="scanStatus">
+          <span class="pulse-dot" style="background:var(--color-gold);"></span>
+          <span id="scanStatusText">Scanner running...</span>
+        </div>
+        <button class="btn-cta hidden" id="scanModalDoneBtn">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast notification -->
   <div class="toast" id="toast"></div>
 

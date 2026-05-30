@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import cors from 'cors';
@@ -162,6 +163,98 @@ app.get('/api/auth/repos', async (req, res) => {
     res.json({ success: true, repos });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+const SCAN_RESULTS_FILE = path.join(__dirname, 'scan-results.json');
+
+// Keep track of active scan state
+let activeScan = {
+  running: false,
+  logs: [],
+  clients: []
+};
+
+// GET /api/scan/results — read current scan detections
+app.get('/api/scan/results', (req, res) => {
+  try {
+    if (fs.existsSync(SCAN_RESULTS_FILE)) {
+      res.json(readJson(SCAN_RESULTS_FILE));
+    } else {
+      res.json([]);
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to read scan results' });
+  }
+});
+
+// POST /api/scan/run — trigger the repository scanner process
+app.post('/api/scan/run', (req, res) => {
+  if (activeScan.running) {
+    return res.status(400).json({ error: 'A scan is already in progress.' });
+  }
+
+  const token = readStoredToken() || process.env.GITHUB_TOKEN;
+  if (!token) {
+    return res.status(400).json({ error: 'GitHub is not connected. Please connect first.' });
+  }
+
+  activeScan.running = true;
+  activeScan.logs = [];
+
+  console.log('\n🚀 Starting local repository scan...');
+  const child = spawn('node', ['index.js'], {
+    env: { ...process.env, GITHUB_TOKEN: token }
+  });
+
+  const appendLog = (data) => {
+    const lines = data.toString().split(/\r?\n/).filter(line => line.trim() !== '');
+    lines.forEach(line => {
+      const formatted = `[${new Date().toLocaleTimeString()}] ${line}`;
+      activeScan.logs.push(formatted);
+      activeScan.clients.forEach(client => {
+        client.write(`data: ${JSON.stringify({ log: formatted })}\n\n`);
+      });
+    });
+  };
+
+  child.stdout.on('data', appendLog);
+  child.stderr.on('data', appendLog);
+
+  child.on('close', (code) => {
+    activeScan.running = false;
+    const finalMsg = `[${new Date().toLocaleTimeString()}] Scan complete with code ${code}.`;
+    activeScan.logs.push(finalMsg);
+    activeScan.clients.forEach(client => {
+      client.write(`data: ${JSON.stringify({ log: finalMsg, done: true })}\n\n`);
+      client.end();
+    });
+    activeScan.clients = [];
+  });
+
+  res.json({ success: true, message: 'Scan started.' });
+});
+
+// GET /api/scan/stream — stream real-time logs via SSE
+app.get('/api/scan/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send historical logs of this active scan if any
+  activeScan.logs.forEach(log => {
+    res.write(`data: ${JSON.stringify({ log })}\n\n`);
+  });
+
+  if (!activeScan.running) {
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } else {
+    activeScan.clients.push(res);
+    req.on('close', () => {
+      activeScan.clients = activeScan.clients.filter(c => c !== res);
+    });
   }
 });
 

@@ -8,19 +8,34 @@ import 'dotenv/config';
 const repos = JSON.parse(fs.readFileSync('./repos.json', 'utf8'));
 const modelMap = JSON.parse(fs.readFileSync('./model-deprecation-map.json', 'utf8'));
 
-// Initialize GitHub API client
-const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN
-});
+const scanResultsFile = './scan-results.json';
+let allDetections = [];
+let octokit;
+let token;
 
 // Setup workspace
 const WORKSPACE_DIR = path.resolve('./workspace');
 
 async function main() {
-  if (!process.env.GITHUB_TOKEN) {
-    console.error("❌ GITHUB_TOKEN environment variable is missing.");
+  // Load token
+  token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    try {
+      const data = JSON.parse(fs.readFileSync('./.token', 'utf8'));
+      token = data.access_token;
+    } catch {}
+  }
+
+  if (!token) {
+    console.error("❌ GITHUB_TOKEN environment variable or .token file is missing. Please log in first.");
     process.exit(1);
   }
+
+  // Clear previous scan results
+  fs.writeFileSync(scanResultsFile, '[]', 'utf8');
+
+  // Initialize GitHub client
+  octokit = new Octokit({ auth: token });
 
   // Create workspace dir if it doesn't exist
   if (!fs.existsSync(WORKSPACE_DIR)) {
@@ -35,6 +50,10 @@ async function main() {
       console.error(`❌ Error processing ${repo}:`, error);
     }
   }
+  
+  // Write scan results to file
+  fs.writeFileSync(scanResultsFile, JSON.stringify(allDetections, null, 2), 'utf8');
+  console.log(`\n📊 Scan results saved to ${scanResultsFile}. Found ${allDetections.length} legacy API usages.`);
   console.log(`\n✅ All repositories processed.`);
 }
 
@@ -47,7 +66,7 @@ async function processRepo(repoFullName) {
     fs.rmSync(repoDir, { recursive: true, force: true });
   }
 
-  const repoUrl = `https://${process.env.GITHUB_TOKEN}@github.com/${repoFullName}.git`;
+  const repoUrl = `https://${token}@github.com/${repoFullName}.git`;
   
   console.log(`   Clone ${repoFullName}...`);
   const git = simpleGit();
@@ -59,7 +78,7 @@ async function processRepo(repoFullName) {
   await repoGit.checkoutLocalBranch(branchName);
 
   console.log(`   Scanning for deprecated models...`);
-  const changesMade = scanAndReplace(repoDir);
+  const changesMade = scanAndReplace(repoDir, repoFullName, repoDir);
 
   if (!changesMade) {
     console.log(`   No deprecated models found in ${repoFullName}.`);
@@ -93,7 +112,7 @@ async function processRepo(repoFullName) {
   console.log(`   🎉 Pull Request created successfully!`);
 }
 
-function scanAndReplace(dir) {
+function scanAndReplace(dir, repoFullName, repoDir) {
   let hasChanges = false;
   const files = fs.readdirSync(dir);
 
@@ -103,7 +122,7 @@ function scanAndReplace(dir) {
     // Ignore common non-code directories
     if (fs.statSync(fullPath).isDirectory()) {
       if (['node_modules', '.git', 'dist', 'build', '.next'].includes(file)) continue;
-      if (scanAndReplace(fullPath)) hasChanges = true;
+      if (scanAndReplace(fullPath, repoFullName, repoDir)) hasChanges = true;
     } else {
       // Basic text file check (skip binary files if possible, here we just read as utf8)
       try {
@@ -115,6 +134,21 @@ function scanAndReplace(dir) {
           // Regex to match the deprecated model name
           const regex = new RegExp(`(?<![a-zA-Z0-9_-])(${deprecatedModel})(?![a-zA-Z0-9_-])`, 'g');
           if (regex.test(content)) {
+            // Find line numbers of matches
+            const lines = originalContent.split(/\r?\n/);
+            lines.forEach((lineText, lineIdx) => {
+              if (lineText.includes(deprecatedModel)) {
+                allDetections.push({
+                  repo: repoFullName,
+                  file: path.relative(repoDir, fullPath).replace(/\\/g, '/'),
+                  line: lineIdx + 1,
+                  lineContent: lineText.trim().substring(0, 100),
+                  model: deprecatedModel,
+                  replacement: info.replacement,
+                  deprecationDate: info.deprecation_date || 'N/A'
+                });
+              }
+            });
             console.log(`     Found ${deprecatedModel} in ${file}, replacing with ${info.replacement}`);
             content = content.replace(regex, info.replacement);
           }
@@ -126,7 +160,6 @@ function scanAndReplace(dir) {
         }
       } catch (err) {
         // Handle read errors (e.g. binary files)
-        console.error(`     Error reading ${file}: ${err.message}`);
       }
     }
   }
